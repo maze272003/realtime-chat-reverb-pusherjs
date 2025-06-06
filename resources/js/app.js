@@ -4,24 +4,85 @@ const chatContainer = document.getElementById('chat-container');
 const messageForm = document.getElementById('message-form');
 const senderInput = document.getElementById('sender-input');
 const messageInput = document.getElementById('message-input');
+const typingIndicator = document.getElementById('typing-indicator');
+
+// Load initial messages when page loads
+async function loadInitialMessages() {
+    try {
+        const response = await fetch('/get-messages');
+        if (response.ok) {
+            const messages = await response.json();
+            messages.reverse().forEach(msg => {
+                const isCurrentUser = msg.sender === (senderInput.value.trim() || 'Anonymous');
+                addMessageToChat(msg.message, isCurrentUser ? 'You' : msg.sender, isCurrentUser);
+            });
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    } catch (error) {
+        console.error('Error loading initial messages:', error);
+    }
+}
 
 // Function to add a message to the chat container
-function addMessageToChat(message, sender) {
+function addMessageToChat(message, sender, isCurrentUser = false) {
     const messageElement = document.createElement('div');
     messageElement.classList.add('message');
-    messageElement.innerHTML = `<strong>${sender}:</strong> <span>${message}</span>`;
-    // Changed from prepend to append
+    messageElement.classList.add(isCurrentUser ? 'message-user' : 'message-other');
+
+    const time = getCurrentTime();
+
+    messageElement.innerHTML = `
+        <div class="message-sender">${sender}</div>
+        <div class="message-text">${message}</div>
+        <div class="message-time">${time}</div>
+    `;
+
     chatContainer.append(messageElement);
-    // Scroll to bottom after adding new message
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-// Listen for messages on the 'public-chat' channel (for messages from others)
-window.Echo.channel('public-chat')
-    .listen('.message-sent', (e) => {
-        console.log('Received message from others:', e);
-        addMessageToChat(e.message, e.sender);
-    });
+// Get current time in HH:MM format
+function getCurrentTime() {
+    const now = new Date();
+    return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+// Show typing indicator
+function showTypingIndicator(sender) {
+    const currentSender = senderInput.value.trim() || 'Anonymous';
+    if (sender !== currentSender) {
+        typingIndicator.textContent = `${sender} is typing...`;
+        typingIndicator.classList.add('active');
+
+        clearTimeout(window.typingTimeout);
+        window.typingTimeout = setTimeout(() => {
+            typingIndicator.classList.remove('active');
+        }, 3000);
+    }
+}
+
+// Initialize Echo listeners
+function initializeEchoListeners() {
+    window.Echo.channel('public-chat')
+        .listen('.message-sent', (e) => {
+            const currentSender = senderInput.value.trim() || 'Anonymous';
+            if (e.sender !== currentSender) {
+                addMessageToChat(e.message, e.sender, false);
+            }
+        })
+        .listenForWhisper('typing', (e) => {
+            showTypingIndicator(e.sender);
+        });
+}
+
+// Handle typing events
+messageInput.addEventListener('input', () => {
+    const sender = senderInput.value.trim() || 'Anonymous';
+    window.Echo.private('public-chat')
+        .whisper('typing', {
+            sender: sender
+        });
+});
 
 // Handle sending messages
 messageForm.addEventListener('submit', async (e) => {
@@ -32,7 +93,7 @@ messageForm.addEventListener('submit', async (e) => {
 
     if (message) {
         // Optimistically add the message for the current sender
-        addMessageToChat(message, sender + ' (You)');
+        addMessageToChat(message, 'You', true);
 
         try {
             const response = await fetch('/send-message', {
@@ -46,18 +107,19 @@ messageForm.addEventListener('submit', async (e) => {
 
             if (!response.ok) {
                 console.error('Failed to send message:', response.statusText);
-                // Optionally handle UI rollback for failed sends
             }
         } catch (error) {
             console.error('Error sending message:', error);
         } finally {
             messageInput.value = '';
+            typingIndicator.classList.remove('active');
         }
     }
 });
 
-// Scroll to the bottom of the chat container when the page loads
-// This ensures that new messages are always visible at the bottom.
-chatContainer.scrollTop = chatContainer.scrollHeight;
-
-console.log('Laravel Echo initialized and listening for public-chat events.');
+// Initialize everything when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    loadInitialMessages();
+    initializeEchoListeners();
+    messageInput.focus();
+});

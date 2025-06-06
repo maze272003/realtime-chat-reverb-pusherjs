@@ -10,7 +10,10 @@ Route::get('/', function () {
     $messages = Message::latest()->limit(50)->get(); // Get the latest 50 messages for backread
     return view('chat', compact('messages'));
 });
-
+// In your web.php routes file
+Route::get('/get-messages', function() {
+    return App\Models\Message::latest()->limit(50)->get(); // Adjust as needed
+});
 Route::post('/send-message', function (Request $request) {
     // Add validation for better practice
     $request->validate([
