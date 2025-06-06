@@ -3,19 +3,34 @@
 use Illuminate\Support\Facades\Route;
 use App\Events\ChatMessageSent;
 use Illuminate\Http\Request;
+use App\Models\Message; // Import the Message model
 
 Route::get('/', function () {
-    return view('chat');
+    // Fetch and pass existing messages to the view
+    $messages = Message::latest()->limit(50)->get(); // Get the latest 50 messages for backread
+    return view('chat', compact('messages'));
 });
 
 Route::post('/send-message', function (Request $request) {
-    $message = $request->input('message');
-    $sender = $request->input('sender', 'Anonymous');
+    // Add validation for better practice
+    $request->validate([
+        'message' => 'required|string|max:1000',
+        'sender' => 'nullable|string|max:50',
+    ]);
 
-    if ($message) {
-        // Ito ang crucial na line: toOthers()
-        broadcast(new ChatMessageSent($message, $sender))->toOthers();
-        return response()->json(['status' => 'Message sent!']);
-    }
-    return response()->json(['status' => 'No message provided.'], 400);
+    $messageContent = $request->input('message');
+    $senderName = $request->input('sender', 'Anonymous');
+
+    // 1. Save the message to the database
+    $message = Message::create([
+        'sender_name' => $senderName,
+        'message' => $messageContent,
+    ]);
+
+    // 2. Broadcast the event (now the message includes sender and content)
+    // We can directly pass the created Message model instance if we want,
+    // but for simplicity and consistency with previous event, we'll extract the data.
+    broadcast(new ChatMessageSent($message->message, $message->sender_name))->toOthers();
+
+    return response()->json(['status' => 'Message sent!']);
 });
