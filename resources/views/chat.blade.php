@@ -61,7 +61,7 @@
             background-color: #0056b3;
         }
     </style>
-    @vite(['resources/js/app.js'])
+
 </head>
 <body>
     <h1>Laravel Reverb Live Chat (Guest Mode)</h1>
@@ -80,10 +80,6 @@
         <input type="text" id="message-input" placeholder="Type your message..." required />
         <button type="submit">Send</button>
     </form>
-
-    <script>
-        // This is handled by resources/js/app.js
-        // We'll add logic to scroll to bottom on load in app.js
-    </script>
+       @vite(['resources/js/app.js'])
 </body>
 </html>

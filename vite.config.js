@@ -8,4 +8,11 @@ export default defineConfig({
             refresh: true,
         }),
     ],
+    server: {
+        host: '192.168.1.226', // <--- Add this line
+        port: 5173, // Or whatever port you prefer for Vite
+        hmr: {
+            host: '192.168.1.226', // <--- Add this for Hot Module Replacement
+        },
+    },
 });
